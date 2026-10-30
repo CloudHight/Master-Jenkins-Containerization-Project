@@ -1,0 +1,46 @@
+---
+# Deploys the bankapp image pushed by the bankapp Jenkins pipeline. Jenkins runs it on the
+# Ansible server through SSM Run Command:
+#   ansible-playbook -i stage_hosts deploy-bankapp.yml \
+#     -e image_ref=<registry>/bankapp:<tag> -e db_host=<rds endpoint> -e db_secret_id=<rds secret arn>
+# The Nexus and DB credentials are read from Secrets Manager on the target hosts (instance role),
+# so no secret is passed on the command line. The container keeps the name appContainer so the
+# cron health check in stage/prod-bashscript.sh sees it running and leaves it alone.
+- hosts: webservers
+  become: true
+  vars_files:
+    - ansible_vars_file.yml
+  vars:
+    db_name: bankapp
+  tasks:
+    - name: Log in to the Nexus registry
+      no_log: true
+      shell: |
+        aws secretsmanager get-secret-value --region {{ AWS_REGION }} --secret-id {{ NEXUS_SECRET_ID }} --query SecretString --output text \
+          | sudo -u ec2-user docker login --username admin --password-stdin {{ NEXUS_REGISTRY }}
+
+    - name: Pull the new image
+      command: sudo -u ec2-user docker pull "{{ image_ref }}"
+
+    - name: Remove the running app container
+      command: docker rm -f appContainer
+      ignore_errors: yes
+
+    - name: Start bankapp with the RDS managed credentials
+      no_log: true
+      shell: |
+        SECRET=$(aws secretsmanager get-secret-value --region {{ AWS_REGION }} --secret-id '{{ db_secret_id }}' --query SecretString --output text)
+        DB_USERNAME=$(echo "$SECRET" | python3 -c 'import json,sys; print(json.load(sys.stdin)["username"])')
+        DB_PASSWORD=$(echo "$SECRET" | python3 -c 'import json,sys; print(json.load(sys.stdin)["password"])')
+        sudo -u ec2-user docker run -d --name appContainer --restart unless-stopped -p 8080:8080 \
+          -e DB_URL='jdbc:mysql://{{ db_host }}:3306/{{ db_name }}?createDatabaseIfNotExist=true' \
+          -e DB_USERNAME="$DB_USERNAME" -e DB_PASSWORD="$DB_PASSWORD" \
+          "{{ image_ref }}"
+
+    - name: Wait for the app health check
+      uri:
+        url: http://localhost:8080/actuator/health
+      register: health
+      until: health.status == 200
+      retries: 30
+      delay: 10

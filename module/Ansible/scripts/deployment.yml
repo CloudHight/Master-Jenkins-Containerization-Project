@@ -1,0 +1,22 @@
+---
+ - hosts: webservers
+   become: true
+   vars_files:
+    - ansible_vars_file.yml
+   tasks:
+   - name: Stop any container running
+     command: docker stop appContainer
+     ignore_errors: yes
+   - name: Remove stopped container
+     command: docker rm appContainer
+     ignore_errors: yes
+   - name: Remove docker image
+     command: docker rmi "{{ NEXUS_REGISTRY }}/petclinicapps:latest"
+     ignore_errors: yes
+   - name: Pull docker image from nexus and create a container
+     no_log: true
+     shell: |
+       aws secretsmanager get-secret-value --region {{ AWS_REGION }} --secret-id {{ NEXUS_SECRET_ID }} --query SecretString --output text \
+         | sudo -u ec2-user docker login --username admin --password-stdin {{ NEXUS_REGISTRY }}
+       sudo -u ec2-user docker pull "{{ NEXUS_REGISTRY }}/petclinicapps:latest"
+       sudo -u ec2-user docker run -d --name appContainer -p 8080:8080 "{{ NEXUS_REGISTRY }}/petclinicapps:latest"

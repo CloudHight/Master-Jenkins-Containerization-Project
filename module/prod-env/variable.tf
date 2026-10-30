@@ -1,0 +1,17 @@
+variable "name" {}
+variable "vpc-id" {}
+variable "bastion" {}
+variable "key-name" {}
+variable "pri-subnet1" {}
+variable "pri-subnet2" {}
+variable "pub-subnet1" {}
+variable "pub-subnet2" {}
+variable "acm-cert-arn" {}
+variable "domain" {}
+variable "ansible" {}
+variable "region" {}
+variable "nexus_registry" {}
+variable "nexus_secret_arn" {}
+variable "db_secret_arn" {}
+variable "kms_key_arn" {}
+variable "cw_config_param" {}

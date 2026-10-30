@@ -1,0 +1,11 @@
+variable "keypair" {}
+variable "name" {}
+variable "subnet_id" {}
+variable "vpc" {}
+variable "bastion_key" {}
+variable "region" {}
+variable "nexus_registry" {}
+variable "nexus_secret_arn" {}
+variable "ssh_key_secret_arn" {}
+variable "kms_key_arn" {}
+variable "cw_config_param" {}
